@@ -1,6 +1,19 @@
+<div align="center">
+  <img src="assets/ClipYT.png" alt="ClipYT Logo" width="120" />
+</div>
+
 # Extractor de Fragmentos de YouTube
 
 Una aplicación web local ágil y sencilla diseñada para descargar recortes de videos de YouTube. Solo necesitas pegar la URL del video, seleccionar el rango de tiempo exacto y podrás obtener tu clip en formato MP4 o GIF.
+
+## 🎨 Interfaz (Modo Claro / Oscuro)
+
+La aplicación cuenta con soporte para temas claro y oscuro, adaptándose a las preferencias de tu sistema.
+
+<p align="center">
+  <img src="assets/light-mode.png" alt="Modo Claro" width="48%" />
+  <img src="assets/dark-mode.png" alt="Modo Oscuro" width="48%" />
+</p>
 
 ## 🚀 Características
 - **Fácil de usar**: Interfaz web intuitiva para interactuar rápidamente.
