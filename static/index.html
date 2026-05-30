@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Extractor YouTube</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar" aria-label="Extractor YouTube">
+        <a class="brand" href="/" aria-label="Inicio">
+          <img src="/assets/ClipYT.png" alt="" />
+          <span>
+            <strong>ClipYT</strong>
+            <small>Extractor de fragmentos</small>
+          </span>
+        </a>
+        <button id="themeToggle" class="theme-toggle" type="button" aria-label="Cambiar a modo oscuro" aria-pressed="false">
+          <span class="theme-toggle__icon" aria-hidden="true"></span>
+        </button>
+      </header>
+
+      <section class="workspace">
+        <section class="tool-surface" aria-label="Herramienta de extracción">
+          <div class="panel">
+            <label class="field-label" for="urlInput">URL de YouTube</label>
+            <div class="url-box">
+              <input id="urlInput" class="url-input" type="url" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off" />
+            </div>
+            <p id="urlError" class="error-text" aria-live="polite"></p>
+          </div>
+
+          <section id="preview" class="preview" hidden>
+            <img id="thumbnail" alt="" />
+            <div class="preview-copy">
+              <span class="preview-kicker">Video listo</span>
+              <h2 id="videoTitle"></h2>
+              <span id="durationBadge"></span>
+            </div>
+          </section>
+
+          <section class="controls" aria-label="Controles de extracción">
+            <div class="range-wrap">
+              <div class="range-track" id="rangeTrack"></div>
+              <input id="startSlider" type="range" min="0" max="1" value="0" disabled />
+              <input id="endSlider" type="range" min="0" max="1" value="1" disabled />
+            </div>
+
+            <div class="control-grid">
+              <label>
+                <span>Inicio</span>
+                <input id="startInput" type="text" value="00:00:00" inputmode="numeric" disabled />
+              </label>
+              <label>
+                <span>Fin</span>
+                <input id="endInput" type="text" value="00:00:00" inputmode="numeric" disabled />
+              </label>
+              <label>
+                <span>Formato</span>
+                <select id="formatSelect" disabled>
+                  <option value="mp4">MP4</option>
+                  <option value="gif">GIF</option>
+                </select>
+              </label>
+              <label>
+                <span>Resolución</span>
+                <select id="qualitySelect" disabled></select>
+              </label>
+            </div>
+
+            <p id="rangeError" class="error-text" aria-live="polite"></p>
+
+            <div class="action-row">
+              <button id="extractButton" class="primary-button" disabled>Extraer</button>
+              <a id="downloadLink" class="download-link" hidden>Descargar archivo</a>
+            </div>
+
+            <div id="progressWrap" class="progress-wrap" hidden>
+              <div class="progress-line">
+                <div id="progressBar"></div>
+              </div>
+              <span id="progressText">0%</span>
+            </div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
