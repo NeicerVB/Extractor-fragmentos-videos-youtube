@@ -31,6 +31,7 @@ const els = {
   progressText: document.querySelector("#progressText"),
   download: document.querySelector("#downloadLink"),
   themeToggle: document.querySelector("#themeToggle"),
+  themeMeta: document.querySelector('meta[name="theme-color"]'),
 };
 
 function preferredTheme() {
@@ -44,6 +45,7 @@ function applyTheme(theme) {
   const isDark = theme === "dark";
   els.themeToggle.setAttribute("aria-pressed", String(isDark));
   els.themeToggle.setAttribute("aria-label", isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro");
+  els.themeMeta.setAttribute("content", isDark ? "#111513" : "#f4f6f1");
 }
 
 function toggleTheme() {
@@ -112,6 +114,7 @@ function renderRange() {
     els.startInput.value = "00:00:00";
     els.endInput.value = "00:00:00";
     els.extract.disabled = true;
+    els.extract.textContent = "Extraer Clip";
     return;
   }
   clampRange();
@@ -130,6 +133,7 @@ function renderRange() {
   const tooLong = state.end - state.start > MAX_SEGMENT;
   els.rangeError.textContent = tooLong ? "El fragmento no puede durar más de 15 minutos." : "";
   els.extract.disabled = state.processing || tooLong || !state.video || !els.quality.value;
+  els.extract.textContent = state.processing ? "Extrayendo…" : "Extraer Clip";
 }
 
 function resetVideo(message = "") {
@@ -137,7 +141,14 @@ function resetVideo(message = "") {
   state.start = 0;
   state.end = 1;
   els.preview.hidden = true;
+  els.thumbnail.removeAttribute("src");
+  els.thumbnail.alt = "";
   els.quality.innerHTML = "";
+  els.progressWrap.hidden = true;
+  els.progressBar.style.width = "0%";
+  els.progressBar.removeAttribute("aria-valuenow");
+  els.progressText.textContent = "0%";
+  els.download.hidden = true;
   setControlsEnabled(false);
   renderRange();
   els.urlError.textContent = message;
@@ -149,7 +160,7 @@ async function loadMetadata(url) {
     return;
   }
   state.loading = true;
-  resetVideo("Cargando información del video...");
+  resetVideo("Cargando información del video…");
   try {
     const response = await fetch("/api/metadata", {
       method: "POST",
@@ -163,6 +174,7 @@ async function loadMetadata(url) {
     state.start = 0;
     state.end = Math.min(MAX_SEGMENT, Math.max(1, state.video.duration));
     els.thumbnail.src = state.video.thumbnail || "";
+    els.thumbnail.alt = state.video.title ? `Miniatura de ${state.video.title}` : "Miniatura del video";
     els.title.textContent = state.video.title;
     els.duration.textContent = state.video.durationLabel;
     els.quality.innerHTML = state.video.qualities.map((quality) => `<option value="${quality}">${quality}p</option>`).join("");
@@ -201,6 +213,7 @@ function handleTimeInput(which) {
 function setProcessing(isProcessing) {
   state.processing = isProcessing;
   els.url.disabled = isProcessing;
+  els.extract.setAttribute("aria-busy", String(isProcessing));
   setControlsEnabled(Boolean(state.video));
   renderRange();
 }
@@ -209,6 +222,10 @@ function updateProgress(percent, message) {
   const safe = Math.max(0, Math.min(100, Number(percent) || 0));
   els.progressWrap.hidden = false;
   els.progressBar.style.width = `${safe}%`;
+  els.progressBar.setAttribute("role", "progressbar");
+  els.progressBar.setAttribute("aria-valuemin", "0");
+  els.progressBar.setAttribute("aria-valuemax", "100");
+  els.progressBar.setAttribute("aria-valuenow", String(safe));
   els.progressText.textContent = message ? `${safe}% · ${message}` : `${safe}%`;
 }
 
@@ -242,7 +259,7 @@ async function extractClip() {
   renderRange();
   els.download.hidden = true;
   els.rangeError.textContent = "";
-  updateProgress(0, "Preparando");
+  updateProgress(0, "Preparando…");
   setProcessing(true);
   try {
     const response = await fetch("/api/extract", {

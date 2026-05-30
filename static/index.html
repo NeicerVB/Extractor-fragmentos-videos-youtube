@@ -3,16 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f4f6f1" />
     <title>Extractor YouTube</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#clipTool">Saltar a la herramienta</a>
     <main class="app-shell">
       <header class="topbar" aria-label="Extractor YouTube">
         <a class="brand" href="/" aria-label="Inicio">
-          <img src="/assets/ClipYT.png" alt="" />
+          <img src="/assets/ClipYT.png" alt="" width="48" height="48" fetchpriority="high" />
           <span>
-            <strong>ClipYT</strong>
+            <strong translate="no">ClipYT</strong>
             <small>Extractor de fragmentos</small>
           </span>
         </a>
@@ -22,17 +24,32 @@
       </header>
 
       <section class="workspace">
-        <section class="tool-surface" aria-label="Herramienta de extracción">
+        <section id="clipTool" class="tool-surface" aria-labelledby="toolTitle">
+          <div class="tool-heading">
+            <p class="eyebrow">Recorte local</p>
+            <h1 id="toolTitle">Extrae el fragmento exacto</h1>
+            <p>Selecciona un rango de hasta 15 minutos, elige formato y guarda el clip en tu equipo.</p>
+          </div>
+
           <div class="panel">
             <label class="field-label" for="urlInput">URL de YouTube</label>
             <div class="url-box">
-              <input id="urlInput" class="url-input" type="url" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off" />
+              <input
+                id="urlInput"
+                class="url-input"
+                name="youtube_url"
+                type="url"
+                inputmode="url"
+                placeholder="https://www.youtube.com/watch?v=…"
+                autocomplete="off"
+                aria-describedby="urlError"
+              />
             </div>
             <p id="urlError" class="error-text" aria-live="polite"></p>
           </div>
 
           <section id="preview" class="preview" hidden>
-            <img id="thumbnail" alt="" />
+            <img id="thumbnail" alt="" width="480" height="270" />
             <div class="preview-copy">
               <span class="preview-kicker">Video listo</span>
               <h2 id="videoTitle"></h2>
@@ -43,40 +60,40 @@
           <section class="controls" aria-label="Controles de extracción">
             <div class="range-wrap">
               <div class="range-track" id="rangeTrack"></div>
-              <input id="startSlider" type="range" min="0" max="1" value="0" disabled />
-              <input id="endSlider" type="range" min="0" max="1" value="1" disabled />
+              <input id="startSlider" name="clip_start_slider" aria-label="Inicio del fragmento" type="range" min="0" max="1" value="0" disabled />
+              <input id="endSlider" name="clip_end_slider" aria-label="Fin del fragmento" type="range" min="0" max="1" value="1" disabled />
             </div>
 
             <div class="control-grid">
               <label>
                 <span>Inicio</span>
-                <input id="startInput" type="text" value="00:00:00" inputmode="numeric" disabled />
+                <input id="startInput" name="clip_start" type="text" value="00:00:00" inputmode="numeric" autocomplete="off" aria-describedby="rangeError" disabled />
               </label>
               <label>
                 <span>Fin</span>
-                <input id="endInput" type="text" value="00:00:00" inputmode="numeric" disabled />
+                <input id="endInput" name="clip_end" type="text" value="00:00:00" inputmode="numeric" autocomplete="off" aria-describedby="rangeError" disabled />
               </label>
               <label>
                 <span>Formato</span>
-                <select id="formatSelect" disabled>
+                <select id="formatSelect" name="format" autocomplete="off" disabled>
                   <option value="mp4">MP4</option>
                   <option value="gif">GIF</option>
                 </select>
               </label>
               <label>
                 <span>Resolución</span>
-                <select id="qualitySelect" disabled></select>
+                <select id="qualitySelect" name="quality" autocomplete="off" disabled></select>
               </label>
             </div>
 
             <p id="rangeError" class="error-text" aria-live="polite"></p>
 
             <div class="action-row">
-              <button id="extractButton" class="primary-button" disabled>Extraer</button>
-              <a id="downloadLink" class="download-link" hidden>Descargar archivo</a>
+              <button id="extractButton" class="primary-button" type="button" disabled>Extraer Clip</button>
+              <a id="downloadLink" class="download-link" hidden>Descargar Archivo</a>
             </div>
 
-            <div id="progressWrap" class="progress-wrap" hidden>
+            <div id="progressWrap" class="progress-wrap" role="status" aria-live="polite" hidden>
               <div class="progress-line">
                 <div id="progressBar"></div>
               </div>
