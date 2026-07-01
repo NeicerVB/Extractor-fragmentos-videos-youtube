@@ -86,6 +86,27 @@
               </label>
             </div>
 
+            <section class="exclusion-panel" aria-labelledby="exclusionTitle">
+              <div class="exclusion-heading">
+                <div>
+                  <h2 id="exclusionTitle">Intervalos excluidos</h2>
+                  <p id="exclusionSummary">Sin intervalos excluidos.</p>
+                </div>
+              </div>
+              <div class="exclusion-grid">
+                <label>
+                  <span>Excluir desde</span>
+                  <input id="excludeStartInput" name="exclude_start" type="text" value="00:00:00" inputmode="numeric" autocomplete="off" aria-describedby="rangeError" disabled />
+                </label>
+                <label>
+                  <span>Excluir hasta</span>
+                  <input id="excludeEndInput" name="exclude_end" type="text" value="00:00:00" inputmode="numeric" autocomplete="off" aria-describedby="rangeError" disabled />
+                </label>
+                <button id="addExclusionButton" class="secondary-button" type="button" disabled>Agregar</button>
+              </div>
+              <div id="exclusionList" class="exclusion-list" aria-live="polite"></div>
+            </section>
+
             <p id="rangeError" class="error-text" aria-live="polite"></p>
 
             <div class="action-row">

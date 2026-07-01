@@ -5,6 +5,7 @@ const state = {
   video: null,
   start: 0,
   end: 1,
+  exclusions: [],
   loading: false,
   processing: false,
   debounce: null,
@@ -22,6 +23,11 @@ const els = {
   track: document.querySelector("#rangeTrack"),
   startInput: document.querySelector("#startInput"),
   endInput: document.querySelector("#endInput"),
+  excludeStartInput: document.querySelector("#excludeStartInput"),
+  excludeEndInput: document.querySelector("#excludeEndInput"),
+  addExclusion: document.querySelector("#addExclusionButton"),
+  exclusionList: document.querySelector("#exclusionList"),
+  exclusionSummary: document.querySelector("#exclusionSummary"),
   format: document.querySelector("#formatSelect"),
   quality: document.querySelector("#qualitySelect"),
   rangeError: document.querySelector("#rangeError"),
@@ -102,22 +108,120 @@ function clampRange() {
   }
 }
 
+function normalizeExclusions() {
+  if (!state.video) {
+    state.exclusions = [];
+    return;
+  }
+  const normalized = state.exclusions
+    .map((exclusion) => ({
+      start: Math.max(state.start, Math.min(Math.floor(exclusion.start), state.end)),
+      end: Math.max(state.start, Math.min(Math.floor(exclusion.end), state.end)),
+    }))
+    .filter((exclusion) => exclusion.end > exclusion.start)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+
+  state.exclusions = normalized.reduce((merged, exclusion) => {
+    const previous = merged.at(-1);
+    if (previous && exclusion.start <= previous.end) {
+      previous.end = Math.max(previous.end, exclusion.end);
+    } else {
+      merged.push({ ...exclusion });
+    }
+    return merged;
+  }, []);
+}
+
+function finalDuration() {
+  const removed = state.exclusions.reduce((total, exclusion) => total + exclusion.end - exclusion.start, 0);
+  return Math.max(0, state.end - state.start - removed);
+}
+
 function setControlsEnabled(enabled) {
   const available = enabled && !state.processing;
-  [els.startSlider, els.endSlider, els.startInput, els.endInput, els.format, els.quality].forEach((el) => {
+  [
+    els.startSlider,
+    els.endSlider,
+    els.startInput,
+    els.endInput,
+    els.excludeStartInput,
+    els.excludeEndInput,
+    els.addExclusion,
+    els.format,
+    els.quality,
+  ].forEach((el) => {
     el.disabled = !available;
   });
+}
+
+function trackBackground(duration) {
+  const stops = [`var(--line) 0 ${(state.start / duration) * 100}%`];
+  let cursor = state.start;
+  state.exclusions.forEach((exclusion) => {
+    const start = (exclusion.start / duration) * 100;
+    const end = (exclusion.end / duration) * 100;
+    const cursorPercent = (cursor / duration) * 100;
+    if (cursor < exclusion.start) {
+      stops.push(`var(--accent) ${cursorPercent}% ${start}%`);
+    }
+    stops.push(`var(--removed) ${start}% ${end}%`);
+    cursor = exclusion.end;
+  });
+  if (cursor < state.end) {
+    stops.push(`var(--accent) ${(cursor / duration) * 100}% ${(state.end / duration) * 100}%`);
+  }
+  stops.push(`var(--line) ${(state.end / duration) * 100}% 100%`);
+  return `linear-gradient(to right, ${stops.join(", ")})`;
+}
+
+function renderExclusions() {
+  if (!state.video) {
+    els.excludeStartInput.value = "00:00:00";
+    els.excludeEndInput.value = "00:00:00";
+    els.exclusionSummary.textContent = "Sin intervalos excluidos.";
+    els.exclusionList.innerHTML = "";
+    return;
+  }
+
+  const parsedStart = fromTime(els.excludeStartInput.value);
+  const defaultStart = Math.min(state.end - 1, state.start);
+  const inputStart =
+    parsedStart === null || parsedStart < state.start || parsedStart >= state.end ? defaultStart : parsedStart;
+  const parsedEnd = fromTime(els.excludeEndInput.value);
+  const inputEnd =
+    parsedEnd === null || parsedEnd <= inputStart || parsedEnd > state.end
+      ? Math.min(state.end, inputStart + 5)
+      : parsedEnd;
+  els.excludeStartInput.value = toTime(inputStart);
+  els.excludeEndInput.value = toTime(inputEnd);
+
+  const duration = finalDuration();
+  els.exclusionSummary.textContent = state.exclusions.length
+    ? `Duración final aproximada: ${toTime(duration)}.`
+    : `Sin intervalos excluidos. Duración final: ${toTime(duration)}.`;
+  els.exclusionList.innerHTML = state.exclusions
+    .map(
+      (exclusion, index) => `
+        <div class="exclusion-item">
+          <span>${toTime(exclusion.start)} - ${toTime(exclusion.end)}</span>
+          <button type="button" data-remove-exclusion="${index}" aria-label="Quitar intervalo ${toTime(exclusion.start)} a ${toTime(exclusion.end)}">Quitar</button>
+        </div>
+      `,
+    )
+    .join("");
 }
 
 function renderRange() {
   if (!state.video) {
     els.startInput.value = "00:00:00";
     els.endInput.value = "00:00:00";
+    renderExclusions();
     els.extract.disabled = true;
     els.extract.textContent = "Extraer Clip";
     return;
   }
   clampRange();
+  normalizeExclusions();
   const duration = Math.max(1, state.video.duration);
   els.startSlider.max = duration;
   els.endSlider.max = duration;
@@ -126,13 +230,17 @@ function renderRange() {
   els.startInput.value = toTime(state.start);
   els.endInput.value = toTime(state.end);
 
-  const left = (state.start / duration) * 100;
-  const right = (state.end / duration) * 100;
-  els.track.style.background = `linear-gradient(to right, var(--line) 0 ${left}%, var(--accent) ${left}% ${right}%, var(--line) ${right}% 100%)`;
+  els.track.style.background = trackBackground(duration);
+  renderExclusions();
 
   const tooLong = state.end - state.start > MAX_SEGMENT;
-  els.rangeError.textContent = tooLong ? "El fragmento no puede durar más de 15 minutos." : "";
-  els.extract.disabled = state.processing || tooLong || !state.video || !els.quality.value;
+  const emptyClip = finalDuration() <= 0;
+  els.rangeError.textContent = tooLong
+    ? "El fragmento no puede durar más de 15 minutos."
+    : emptyClip
+      ? "Los intervalos excluidos cubren todo el fragmento."
+      : "";
+  els.extract.disabled = state.processing || tooLong || emptyClip || !state.video || !els.quality.value;
   els.extract.textContent = state.processing ? "Extrayendo…" : "Extraer Clip";
 }
 
@@ -140,6 +248,7 @@ function resetVideo(message = "") {
   state.video = null;
   state.start = 0;
   state.end = 1;
+  state.exclusions = [];
   els.preview.hidden = true;
   els.thumbnail.removeAttribute("src");
   els.thumbnail.alt = "";
@@ -173,6 +282,9 @@ async function loadMetadata(url) {
     state.video = payload.video;
     state.start = 0;
     state.end = Math.min(MAX_SEGMENT, Math.max(1, state.video.duration));
+    state.exclusions = [];
+    els.excludeStartInput.value = toTime(state.start);
+    els.excludeEndInput.value = toTime(Math.min(state.end, state.start + 5));
     els.thumbnail.src = state.video.thumbnail || "";
     els.thumbnail.alt = state.video.title ? `Miniatura de ${state.video.title}` : "Miniatura del video";
     els.title.textContent = state.video.title;
@@ -207,6 +319,26 @@ function handleTimeInput(which) {
     return;
   }
   state[which] = parsed;
+  renderRange();
+}
+
+function addExclusion() {
+  if (!state.video || state.processing) return;
+  const start = fromTime(els.excludeStartInput.value);
+  const end = fromTime(els.excludeEndInput.value);
+  if (start === null || end === null || end <= start) {
+    els.rangeError.textContent = "El intervalo excluido necesita un inicio menor que su fin.";
+    return;
+  }
+  if (start < state.start || end > state.end) {
+    els.rangeError.textContent = "El intervalo excluido debe quedar dentro del rango principal.";
+    return;
+  }
+  state.exclusions.push({ start, end });
+  normalizeExclusions();
+  const nextStart = Math.min(state.end - 1, end);
+  els.excludeStartInput.value = toTime(nextStart);
+  els.excludeEndInput.value = toTime(Math.min(state.end, nextStart + 5));
   renderRange();
 }
 
@@ -269,6 +401,7 @@ async function extractClip() {
         url: els.url.value.trim(),
         start: state.start,
         end: state.end,
+        exclusions: state.exclusions,
         format: els.format.value,
         quality: Number(els.quality.value),
       }),
@@ -298,6 +431,13 @@ els.startInput.addEventListener("keydown", (event) => {
 });
 els.endInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") handleTimeInput("end");
+});
+els.addExclusion.addEventListener("click", addExclusion);
+els.exclusionList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-remove-exclusion]");
+  if (!button || state.processing) return;
+  state.exclusions.splice(Number(button.dataset.removeExclusion), 1);
+  renderRange();
 });
 els.quality.addEventListener("change", renderRange);
 els.format.addEventListener("change", renderRange);

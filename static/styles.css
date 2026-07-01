@@ -11,6 +11,7 @@
   --accent: #d71920;
   --accent-strong: #9f0e18;
   --accent-soft: #ffe4df;
+  --removed: #202620;
   --focus: #007f73;
   --focus-soft: rgba(0, 127, 115, 0.22);
   --success: #1d774a;
@@ -33,6 +34,7 @@
   --accent: #ff5348;
   --accent-strong: #ff8b72;
   --accent-soft: rgba(255, 83, 72, 0.16);
+  --removed: #f5c84b;
   --focus: #48c7b8;
   --focus-soft: rgba(72, 199, 184, 0.24);
   --success: #4eb66f;
@@ -223,7 +225,8 @@ select {
 .eyebrow,
 .preview-kicker,
 .field-label,
-.control-grid span {
+.control-grid span,
+.exclusion-grid span {
   margin: 0;
   color: var(--muted);
   font-size: 0.76rem;
@@ -289,7 +292,8 @@ select {
 
 .url-input,
 .control-grid input,
-.control-grid select {
+.control-grid select,
+.exclusion-grid input {
   width: 100%;
   min-height: 48px;
   border: 1px solid var(--line);
@@ -307,7 +311,8 @@ select {
 
 .url-input:hover,
 .control-grid input:hover,
-.control-grid select:hover {
+.control-grid select:hover,
+.exclusion-grid input:hover {
   border-color: color-mix(in srgb, var(--focus) 56%, var(--line));
 }
 
@@ -318,6 +323,9 @@ select {
 .url-input:focus-visible,
 .control-grid input:focus-visible,
 .control-grid select:focus-visible,
+.exclusion-grid input:focus-visible,
+.secondary-button:focus-visible,
+.exclusion-item button:focus-visible,
 .range-wrap input[type="range"]:focus-visible::-webkit-slider-thumb {
   outline: 3px solid var(--focus-soft);
   outline-offset: 2px;
@@ -330,7 +338,9 @@ select {
 
 .url-input:disabled,
 .control-grid input:disabled,
-.control-grid select:disabled {
+.control-grid select:disabled,
+.exclusion-grid input:disabled,
+.secondary-button:disabled {
   cursor: not-allowed;
   opacity: 0.62;
 }
@@ -478,9 +488,99 @@ select {
 }
 
 .control-grid input,
-.control-grid select {
+.control-grid select,
+.exclusion-grid input {
   font-variant-numeric: tabular-nums;
   font-weight: 820;
+}
+
+.exclusion-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: var(--radius);
+  padding: 14px;
+  background: color-mix(in srgb, var(--field) 72%, transparent);
+}
+
+.exclusion-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.exclusion-heading h2 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.exclusion-heading p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.exclusion-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.exclusion-grid label {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+}
+
+.secondary-button,
+.exclusion-item button {
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 14px;
+  color: var(--ink);
+  background: var(--panel-solid);
+  font-weight: 900;
+  cursor: pointer;
+  transition: border-color 160ms ease, transform 160ms ease, background-color 160ms ease;
+}
+
+.secondary-button:hover:not(:disabled),
+.exclusion-item button:hover {
+  border-color: var(--focus);
+  transform: translateY(-1px);
+}
+
+.exclusion-list {
+  display: grid;
+  gap: 8px;
+}
+
+.exclusion-item {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-left: 4px solid var(--removed);
+  border-radius: 6px;
+  padding: 8px 8px 8px 12px;
+  background: color-mix(in srgb, var(--panel-solid) 84%, transparent);
+}
+
+.exclusion-item span {
+  font-variant-numeric: tabular-nums;
+  font-weight: 880;
+}
+
+.exclusion-item button {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 0.86rem;
 }
 
 .action-row {
@@ -610,6 +710,14 @@ select {
   .control-grid {
     grid-template-columns: 1fr 1fr;
   }
+
+  .exclusion-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .secondary-button {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 500px) {
@@ -634,8 +742,13 @@ select {
     grid-template-columns: 1fr;
   }
 
+  .exclusion-grid {
+    grid-template-columns: 1fr;
+  }
+
   .primary-button,
-  .download-link {
+  .download-link,
+  .secondary-button {
     width: 100%;
   }
 

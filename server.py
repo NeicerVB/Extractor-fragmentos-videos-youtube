@@ -24,9 +24,9 @@ JOB_DIR = ROOT / ".clip_jobs"
 VENDOR_DIR = ROOT / ".vendor"
 MAX_SEGMENT_SECONDS = 900
 ALLOWED_QUALITIES = (360, 480, 720, 1080)
-GIF_MAX_HEIGHT = 360
+GIF_MAX_WIDTH = 640
 GIF_FPS = 10
-GIF_MAX_COLORS = 160
+GIF_MAX_COLORS = 256
 VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,}$")
 
 if VENDOR_DIR.exists():
@@ -197,13 +197,121 @@ def build_format_selector(quality: int) -> str:
 
 
 def build_gif_filter(quality: int) -> str:
-    target_height = min(quality, GIF_MAX_HEIGHT)
     return (
-        f"fps={GIF_FPS},scale=-2:min({target_height}\\,ih):flags=lanczos,"
+        f"fps={GIF_FPS},scale={GIF_MAX_WIDTH}:-2:flags=lanczos,"
         "split[s0][s1];"
         f"[s0]palettegen=max_colors={GIF_MAX_COLORS}:stats_mode=diff[p];"
-        "[s1][p]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle"
+        "[s1][p]paletteuse=dither=bayer:bayer_scale=2:diff_mode=rectangle"
     )
+
+
+def parse_exclusions(raw_exclusions, start: int, end: int) -> list[tuple[int, int]]:
+    if raw_exclusions is None:
+        return []
+    if not isinstance(raw_exclusions, list):
+        raise ValueError("Los intervalos excluidos no tienen un formato válido.")
+
+    exclusions: list[tuple[int, int]] = []
+    for item in raw_exclusions:
+        if not isinstance(item, dict):
+            raise ValueError("Los intervalos excluidos no tienen un formato válido.")
+        try:
+            exclude_start = int(item.get("start", 0))
+            exclude_end = int(item.get("end", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Los intervalos excluidos no tienen un formato válido.") from exc
+        if exclude_start < start or exclude_end > end or exclude_end <= exclude_start:
+            raise ValueError("Cada intervalo excluido debe estar dentro del rango principal.")
+        exclusions.append((exclude_start, exclude_end))
+
+    exclusions.sort()
+    merged: list[tuple[int, int]] = []
+    for exclude_start, exclude_end in exclusions:
+        if merged and exclude_start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], exclude_end))
+        else:
+            merged.append((exclude_start, exclude_end))
+    return merged
+
+
+def kept_segments(start: int, end: int, exclusions: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    cursor = start
+    segments: list[tuple[int, int]] = []
+    for exclude_start, exclude_end in exclusions:
+        if cursor < exclude_start:
+            segments.append((cursor - start, exclude_start - start))
+        cursor = max(cursor, exclude_end)
+    if cursor < end:
+        segments.append((cursor - start, end - start))
+    return segments
+
+
+def concat_file_line(path: Path) -> str:
+    escaped = str(path.resolve()).replace("'", "'\\''")
+    return f"file '{escaped}'\n"
+
+
+def remove_excluded_segments(source_path: Path, output_path: Path, segments: list[tuple[int, int]], job_id: str) -> None:
+    segment_paths: list[Path] = []
+    concat_path = JOB_DIR / f"{job_id}-concat.txt"
+    try:
+        for index, (segment_start, segment_end) in enumerate(segments):
+            segment_path = JOB_DIR / f"{job_id}-keep-{index:02d}.mp4"
+            segment_paths.append(segment_path)
+            cut_command = [
+                "ffmpeg",
+                "-y",
+                "-ss",
+                str(segment_start),
+                "-i",
+                str(source_path),
+                "-t",
+                str(segment_end - segment_start),
+                "-map",
+                "0:v:0",
+                "-map",
+                "0:a:0?",
+                "-c:v",
+                "libx264",
+                "-crf",
+                "28",
+                "-preset",
+                "fast",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "128k",
+                "-movflags",
+                "+faststart",
+                str(segment_path),
+            ]
+            run_command(cut_command, job_id, "trim", progress_base=82)
+
+        concat_path.write_text("".join(concat_file_line(path) for path in segment_paths), encoding="utf-8")
+        concat_command = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(concat_path),
+            "-c",
+            "copy",
+            str(output_path),
+        ]
+        run_command(concat_command, job_id, "trim", progress_base=84)
+    finally:
+        for path in segment_paths:
+            try:
+                path.unlink()
+            except OSError:
+                pass
+        try:
+            concat_path.unlink()
+        except OSError:
+            pass
 
 
 def process_job(job_id: str, payload: dict) -> None:
@@ -230,6 +338,10 @@ def process_job(job_id: str, payload: dict) -> None:
             raise ValueError("El rango queda fuera de la duración del video.")
         if quality not in metadata["qualities"]:
             raise ValueError("La resolución seleccionada no está disponible para este video.")
+        exclusions = parse_exclusions(payload.get("exclusions", []), start, end)
+        segments = kept_segments(start, end, exclusions)
+        if not segments:
+            raise ValueError("Los intervalos excluidos cubren todo el fragmento.")
 
         JOB_DIR.mkdir(exist_ok=True)
         raw_path = JOB_DIR / f"{job_id}-raw.%(ext)s"
@@ -245,11 +357,12 @@ def process_job(job_id: str, payload: dict) -> None:
             "--newline",
             "--download-sections",
             f"*{seconds_to_hhmmss(start)}-{seconds_to_hhmmss(end)}",
-            "--force-keyframes-at-cuts",
             "-f",
             build_format_selector(quality),
             "--merge-output-format",
             "mp4",
+            "--downloader-args",
+            "ffmpeg:-c:v libx264 -crf 28 -preset fast -c:a aac -b:a 128k",
             "-o",
             str(raw_path),
             url,
@@ -262,6 +375,16 @@ def process_job(job_id: str, payload: dict) -> None:
         downloaded_path = downloaded[0]
         if downloaded_path != mp4_path:
             shutil.move(str(downloaded_path), str(mp4_path))
+
+        if exclusions:
+            filtered_path = JOB_DIR / f"{job_id}-filtered.mp4"
+            update_job(job_id, progress=82, message="Quitando intervalos excluidos")
+            remove_excluded_segments(mp4_path, filtered_path, segments, job_id)
+            try:
+                mp4_path.unlink()
+            except OSError:
+                pass
+            shutil.move(str(filtered_path), str(mp4_path))
 
         if output_format == "gif":
             gif_path = base_output.with_suffix(".gif")
