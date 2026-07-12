@@ -19,6 +19,7 @@ La aplicación cuenta con soporte para temas claro y oscuro, adaptándose a las 
 - **Fácil de usar**: Interfaz web intuitiva para interactuar rápidamente.
 - **Recortes precisos**: Selecciona el instante exacto de inicio y fin para extraer solo lo que te interesa.
 - **Formatos soportados**: Exporta directamente a MP4 (video estándar) o GIF (ideal para memes o animaciones cortas).
+- **Integración directa con GIPHY**: Sube tus fragmentos a Giphy con un solo clic, sin descargas previas en tu equipo. Obtén al instante un enlace directo en formato GIF (`https://media.giphy.com/media/{id}/giphy.gif`).
 - **Procesamiento Local**: Todo el procesamiento se realiza en tu propia máquina a través de ffmpeg.
 
 ## 📋 Requisitos Previos
@@ -51,6 +52,9 @@ python3 server.py
 
 3. Pega la URL del video de YouTube.
 4. Establece el punto de inicio y el fin del fragmento.
-5. Selecciona el formato (MP4 o GIF) y haz clic en el botón de extracción. 
+5. Elige el formato deseado (MP4 o GIF).
+6. **Descarga local o subida directa**:
+   * Si deseas guardar el fragmento en tu máquina, haz clic en **Extraer Clip**.
+   * Si prefieres subirlo directamente a Giphy sin descargarlo primero, haz clic en **Subir a GIPHY**, ingresa tus datos en el modal y la aplicación se encargará de extraer el recorte y subirlo de forma transparente en segundo plano.
 
-> **Nota técnica:** Los archivos temporales se guardan localmente en la carpeta `.clip_jobs/` durante su generación. Una vez completado el proceso, el archivo será entregado mediante el diálogo normal de descarga de tu navegador.
+> **Nota técnica:** Los archivos temporales se guardan localmente en la carpeta `.clip_jobs/` durante su generación. Si realizaste una extracción directa para descarga, el archivo se entregará a través del diálogo normal del navegador. Si subiste directamente a Giphy, se te proporcionará el enlace directo del GIF al finalizar.

@@ -116,6 +116,7 @@
             <div class="action-row">
               <button id="extractButton" class="primary-button" type="button" disabled>Extraer Clip</button>
               <a id="downloadLink" class="download-link" hidden>Descargar Archivo</a>
+              <button id="giphyOpenBtn" class="giphy-button" type="button" hidden>Subir a GIPHY</button>
             </div>
 
             <div id="progressWrap" class="progress-wrap" role="status" aria-live="polite" hidden>
@@ -128,6 +129,58 @@
         </section>
       </section>
     </main>
+
+    <!-- Giphy Upload Modal -->
+    <div id="giphyModal" class="modal-overlay" hidden>
+      <div class="modal-card">
+        <header class="modal-header">
+          <h3>Subir a GIPHY</h3>
+          <button id="closeGiphyModal" class="close-button" type="button" aria-label="Cerrar modal">&times;</button>
+        </header>
+        <div class="modal-body">
+          <form id="giphyForm">
+            <div class="form-group">
+              <label for="giphyApiKey">API Key de GIPHY</label>
+              <input type="password" id="giphyApiKey" name="api_key" placeholder="Ingresa tu GIPHY API Key" autocomplete="current-password" required />
+              <p class="field-help">Consigue tu clave en <a href="https://developers.giphy.com/dashboard/" target="_blank" rel="noopener">Giphy Developers</a>.</p>
+            </div>
+            <div class="form-group">
+              <label for="giphyTitle">Título</label>
+              <input type="text" id="giphyTitle" name="title" placeholder="Título para Giphy" />
+            </div>
+            <div class="form-group">
+              <label for="giphyTags">Etiquetas (separadas por comas)</label>
+              <input type="text" id="giphyTags" name="tags" placeholder="ej. youtube, clip, gracioso" />
+            </div>
+            <p id="giphyError" class="error-text" aria-live="polite"></p>
+            <div class="modal-actions">
+              <button id="giphyCancelButton" class="secondary-button" type="button">Cancelar</button>
+              <button id="giphySubmitButton" class="primary-button" type="submit">Subir a Giphy</button>
+            </div>
+          </form>
+          
+          <div id="giphyUploading" hidden>
+            <div class="spinner"></div>
+            <p>Subiendo tu clip a Giphy, esto puede tardar un momento...</p>
+          </div>
+          
+          <div id="giphySuccess" hidden>
+            <div class="success-icon">✓</div>
+            <h4>¡Subido con éxito!</h4>
+            <p>Tu clip ya está disponible en Giphy.</p>
+            <div class="result-links">
+              <div class="copy-field-wrap">
+                <label for="giphyCopyUrl">Enlace GIF</label>
+                <div class="copy-input-row">
+                  <input type="text" id="giphyCopyUrl" readonly />
+                  <button id="giphyCopyUrlBtn" class="secondary-button compact" type="button">Copiar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script src="/static/app.js"></script>
   </body>
