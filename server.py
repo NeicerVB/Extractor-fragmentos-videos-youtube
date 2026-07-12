@@ -441,6 +441,71 @@ def process_job(job_id: str, payload: dict) -> None:
         update_job(job_id, status="error", progress=0, message="Error", error=str(exc))
 
 
+def upload_to_giphy(file_path: Path, api_key: str, tags: str = "", title: str = "", source_post_url: str = "") -> str:
+    import urllib.request
+    import urllib.error
+
+    url = "https://upload.giphy.com/v1/gifs"
+    boundary = "----WebKitFormBoundaryGiphyUploadAntigravity"
+    
+    parts = []
+    
+    # Add api_key
+    parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"api_key\"\r\n\r\n{api_key}\r\n")
+    
+    # Add tags
+    if tags:
+        parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"tags\"\r\n\r\n{tags}\r\n")
+        
+    # Add title
+    if title:
+        parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"title\"\r\n\r\n{title}\r\n")
+        
+    # Add source_post_url
+    if source_post_url:
+        parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"source_post_url\"\r\n\r\n{source_post_url}\r\n")
+        
+    # Add file header
+    filename = file_path.name
+    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: {content_type}\r\n\r\n")
+    
+    # Convert text parts to bytes
+    body_prefix = "".join(parts).encode("utf-8")
+    body_suffix = f"\r\n--{boundary}--\r\n".encode("utf-8")
+    
+    try:
+        file_content = file_path.read_bytes()
+    except Exception as exc:
+        raise RuntimeError(f"No se pudo leer el archivo de video: {exc}")
+        
+    full_body = body_prefix + file_content + body_suffix
+    
+    req = urllib.request.Request(url, data=full_body, method="POST")
+    req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
+    req.add_header("Content-Length", str(len(full_body)))
+    req.add_header("User-Agent", "ClipYouTube/1.0 (urllib)")
+    
+    try:
+        with urllib.request.urlopen(req, timeout=60) as response:
+            resp_data = json.loads(response.read().decode("utf-8"))
+            giphy_id = resp_data.get("data", {}).get("id")
+            if not giphy_id:
+                msg = resp_data.get("meta", {}).get("msg", "Error desconocido")
+                raise RuntimeError(f"La respuesta de Giphy no contiene el ID del archivo: {msg}")
+            return giphy_id
+    except urllib.error.HTTPError as exc:
+        try:
+            error_body = exc.read().decode("utf-8")
+            error_json = json.loads(error_body)
+            error_msg = error_json.get("meta", {}).get("msg") or str(exc)
+        except Exception:
+            error_msg = str(exc)
+        raise RuntimeError(f"Error de Giphy ({exc.code}): {error_msg}")
+    except Exception as exc:
+        raise RuntimeError(f"Error al conectar con Giphy: {exc}")
+
+
 class ClipHandler(BaseHTTPRequestHandler):
     server_version = "ClipYouTube/1.0"
 
@@ -491,6 +556,34 @@ class ClipHandler(BaseHTTPRequestHandler):
                 thread = threading.Thread(target=process_job, args=(job_id, data), daemon=True)
                 thread.start()
                 json_response(self, 202, {"ok": True, "jobId": job_id})
+            elif parsed.path == "/api/upload-giphy":
+                data = read_json(self)
+                job_id = str(data.get("jobId", "")).strip()
+                api_key = str(data.get("apiKey", "")).strip() or os.environ.get("GIPHY_API_KEY", "")
+                tags = str(data.get("tags", "")).strip()
+                title = str(data.get("title", "")).strip()
+                source_post_url = str(data.get("sourcePostUrl", "")).strip()
+                
+                if not job_id:
+                    raise ValueError("Se requiere el ID del trabajo.")
+                if not api_key:
+                    raise ValueError("Se requiere una API Key de Giphy.")
+                
+                with jobs_lock:
+                    job = jobs.get(job_id)
+                    path = job.path if job else None
+                
+                if not path or not path.exists():
+                    raise ValueError("El archivo del fragmento no existe o el trabajo no está listo.")
+                
+                giphy_id = upload_to_giphy(path, api_key, tags, title, source_post_url)
+                json_response(self, 200, {
+                    "ok": True,
+                    "giphyId": giphy_id,
+                    "url": f"https://giphy.com/gifs/{giphy_id}",
+                    "embedUrl": f"https://giphy.com/embed/{giphy_id}",
+                    "gifUrl": f"https://media.giphy.com/media/{giphy_id}/giphy.gif"
+                })
             else:
                 self.send_error(HTTPStatus.NOT_FOUND)
         except ValueError as exc:

@@ -9,6 +9,7 @@ const state = {
   loading: false,
   processing: false,
   debounce: null,
+  currentJobId: null,
 };
 
 const els = {
@@ -38,6 +39,20 @@ const els = {
   progressBar: document.querySelector("#progressBar"),
   progressText: document.querySelector("#progressText"),
   download: document.querySelector("#downloadLink"),
+  giphyOpenBtn: document.querySelector("#giphyOpenBtn"),
+  giphyModal: document.querySelector("#giphyModal"),
+  closeGiphyModal: document.querySelector("#closeGiphyModal"),
+  giphyForm: document.querySelector("#giphyForm"),
+  giphyApiKey: document.querySelector("#giphyApiKey"),
+  giphyTitle: document.querySelector("#giphyTitle"),
+  giphyTags: document.querySelector("#giphyTags"),
+  giphyError: document.querySelector("#giphyError"),
+  giphyCancelButton: document.querySelector("#giphyCancelButton"),
+  giphyUploading: document.querySelector("#giphyUploading"),
+  giphySuccess: document.querySelector("#giphySuccess"),
+  giphyCopyUrl: document.querySelector("#giphyCopyUrl"),
+  giphyCopyUrlBtn: document.querySelector("#giphyCopyUrlBtn"),
+  giphyUploadingText: document.querySelector("#giphyUploading p"),
   themeToggle: document.querySelector("#themeToggle"),
   themeMeta: document.querySelector('meta[name="theme-color"]'),
 };
@@ -253,6 +268,11 @@ function renderRange() {
       : "";
   els.extract.disabled = state.processing || tooLong || emptyClip || !state.video || !els.quality.value;
   els.extract.textContent = state.processing ? "Extrayendo…" : "Extraer Clip";
+
+  if (els.giphyOpenBtn) {
+    els.giphyOpenBtn.hidden = !state.video;
+    els.giphyOpenBtn.disabled = state.processing || tooLong || emptyClip || !state.video || !els.quality.value;
+  }
 }
 
 function resetVideo(message = "") {
@@ -260,6 +280,7 @@ function resetVideo(message = "") {
   state.start = 0;
   state.end = 1;
   state.exclusions = [];
+  state.currentJobId = null;
   els.preview.hidden = true;
   els.thumbnail.removeAttribute("src");
   els.thumbnail.alt = "";
@@ -269,6 +290,7 @@ function resetVideo(message = "") {
   els.progressBar.removeAttribute("aria-valuenow");
   els.progressText.textContent = "0%";
   els.download.hidden = true;
+  if (els.giphyOpenBtn) els.giphyOpenBtn.hidden = true;
   setControlsEnabled(false);
   renderRange();
   els.urlError.textContent = message;
@@ -378,6 +400,7 @@ async function pollJob(jobId) {
   if (!response.ok || !job.ok) throw new Error(job.error || "No se pudo consultar el progreso.");
   updateProgress(job.progress, job.message);
   if (job.status === "done") {
+    state.currentJobId = jobId;
     els.download.href = job.downloadUrl;
     els.download.download = job.filename || "";
     els.download.hidden = false;
@@ -400,6 +423,7 @@ async function extractClip() {
   if (!state.video || state.processing) return;
   clampRange();
   renderRange();
+  state.currentJobId = null;
   els.download.hidden = true;
   els.rangeError.textContent = "";
   updateProgress(0, "Preparando…");
@@ -426,35 +450,227 @@ async function extractClip() {
   }
 }
 
+function clearCurrentJob() {
+  if (state.currentJobId) {
+    state.currentJobId = null;
+    els.download.hidden = true;
+  }
+}
+
 els.url.addEventListener("input", scheduleMetadataLoad);
 els.url.addEventListener("paste", () => window.setTimeout(scheduleMetadataLoad, 0));
 els.startSlider.addEventListener("input", () => {
   state.start = Number(els.startSlider.value);
+  clearCurrentJob();
   renderRange();
 });
 els.endSlider.addEventListener("input", () => {
   state.end = Number(els.endSlider.value);
+  clearCurrentJob();
   renderRange();
 });
-els.startInput.addEventListener("blur", () => handleTimeInput("start"));
-els.endInput.addEventListener("blur", () => handleTimeInput("end"));
+els.startInput.addEventListener("blur", () => {
+  handleTimeInput("start");
+  clearCurrentJob();
+});
+els.endInput.addEventListener("blur", () => {
+  handleTimeInput("end");
+  clearCurrentJob();
+});
 els.startInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") handleTimeInput("start");
+  if (event.key === "Enter") {
+    handleTimeInput("start");
+    clearCurrentJob();
+  }
 });
 els.endInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") handleTimeInput("end");
+  if (event.key === "Enter") {
+    handleTimeInput("end");
+    clearCurrentJob();
+  }
 });
-els.addExclusion.addEventListener("click", addExclusion);
+els.addExclusion.addEventListener("click", () => {
+  addExclusion();
+  clearCurrentJob();
+});
 els.exclusionList.addEventListener("click", (event) => {
   const button = event.target.closest("[data-remove-exclusion]");
   if (!button || state.processing) return;
   state.exclusions.splice(Number(button.dataset.removeExclusion), 1);
+  clearCurrentJob();
   renderRange();
 });
-els.quality.addEventListener("change", renderRange);
-els.format.addEventListener("change", renderRange);
+els.quality.addEventListener("change", () => {
+  clearCurrentJob();
+  renderRange();
+});
+els.format.addEventListener("change", () => {
+  clearCurrentJob();
+  renderRange();
+});
 els.extract.addEventListener("click", extractClip);
 els.themeToggle.addEventListener("click", toggleTheme);
+
+// ==========================================================================
+// Giphy Integration Functions
+// ==========================================================================
+
+function openGiphyModal() {
+  if (!state.video) return;
+  
+  // Prefill fields
+  const savedKey = window.localStorage.getItem("clipyt-giphy-key") || "";
+  els.giphyApiKey.value = savedKey;
+  els.giphyTitle.value = state.video ? state.video.title : "";
+  els.giphyTags.value = "youtube, clip";
+  
+  // Reset views
+  els.giphyForm.hidden = false;
+  els.giphyUploading.hidden = true;
+  els.giphySuccess.hidden = true;
+  els.giphyError.textContent = "";
+  
+  els.giphyModal.hidden = false;
+}
+
+function closeGiphyModal() {
+  els.giphyModal.hidden = true;
+}
+
+async function handleGiphySubmit(event) {
+  event.preventDefault();
+  
+  const apiKey = els.giphyApiKey.value.trim();
+  const title = els.giphyTitle.value.trim();
+  const tags = els.giphyTags.value.trim();
+  
+  if (!apiKey) {
+    els.giphyError.textContent = "Se requiere una API Key de GIPHY.";
+    return;
+  }
+  
+  // Save key to localStorage
+  window.localStorage.setItem("clipyt-giphy-key", apiKey);
+  
+  els.giphyForm.hidden = true;
+  els.giphyUploading.hidden = false;
+  els.giphyError.textContent = "";
+  els.giphyUploadingText.textContent = "Preparando...";
+  
+  try {
+    let jobId = state.currentJobId;
+    if (!jobId) {
+      els.giphyUploadingText.textContent = "Paso 1 de 2: Iniciando extracción del fragmento...";
+      // Start extraction job
+      const response = await fetch("/api/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: els.url.value.trim(),
+          start: state.start,
+          end: state.end,
+          exclusions: state.exclusions,
+          format: els.format.value,
+          includeAudio: els.format.value === "mp4" ? els.includeAudio.checked : false,
+          quality: Number(els.quality.value),
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "No se pudo iniciar la extracción.");
+      }
+      jobId = payload.jobId;
+      
+      // Wait for extraction
+      await new Promise((resolve, reject) => {
+        async function poll() {
+          try {
+            const jobRes = await fetch(`/api/jobs/${jobId}`);
+            const job = await jobRes.json();
+            if (!jobRes.ok || !job.ok) {
+              throw new Error(job.error || "Error al consultar el progreso.");
+            }
+            if (job.status === "done") {
+              // Save jobId to state
+              state.currentJobId = jobId;
+              // Update the download link in the background
+              els.download.href = job.downloadUrl;
+              els.download.download = job.filename || "";
+              els.download.hidden = false;
+              resolve();
+              return;
+            }
+            if (job.status === "error") {
+              throw new Error(job.error || "Error al procesar el fragmento.");
+            }
+            els.giphyUploadingText.textContent = `Paso 1 de 2: ${job.message} (${job.progress}%)`;
+            window.setTimeout(poll, 900);
+          } catch (err) {
+            reject(err);
+          }
+        }
+        poll();
+      });
+    }
+    
+    // Now perform Giphy upload
+    els.giphyUploadingText.textContent = "Paso 2 de 2: Subiendo a Giphy...";
+    const response = await fetch("/api/upload-giphy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jobId: jobId,
+        apiKey: apiKey,
+        title: title,
+        tags: tags,
+        sourcePostUrl: els.url.value.trim()
+      })
+    });
+    
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error || "Error al subir a GIPHY.");
+    }
+    
+    // Show success view
+    els.giphyUploading.hidden = true;
+    els.giphySuccess.hidden = false;
+    els.giphyCopyUrl.value = payload.gifUrl;
+    
+  } catch (error) {
+    els.giphyUploading.hidden = true;
+    els.giphyForm.hidden = false;
+    els.giphyError.textContent = error.message || "Ocurrió un error inesperado al subir.";
+  }
+}
+
+async function copyToClipboard(inputEl, btnEl) {
+  try {
+    await navigator.clipboard.writeText(inputEl.value);
+    const originalText = btnEl.textContent;
+    btnEl.textContent = "¡Copiado!";
+    btnEl.classList.add("success");
+    window.setTimeout(() => {
+      btnEl.textContent = originalText;
+      btnEl.classList.remove("success");
+    }, 2000);
+  } catch (err) {
+    inputEl.select();
+    document.execCommand("copy");
+    const originalText = btnEl.textContent;
+    btnEl.textContent = "¡Copiado!";
+    window.setTimeout(() => {
+      btnEl.textContent = originalText;
+    }, 2000);
+  }
+}
+
+// Giphy modal event listeners
+if (els.giphyOpenBtn) els.giphyOpenBtn.addEventListener("click", openGiphyModal);
+if (els.closeGiphyModal) els.closeGiphyModal.addEventListener("click", closeGiphyModal);
+if (els.giphyCancelButton) els.giphyCancelButton.addEventListener("click", closeGiphyModal);
+if (els.giphyForm) els.giphyForm.addEventListener("submit", handleGiphySubmit);
+if (els.giphyCopyUrlBtn) els.giphyCopyUrlBtn.addEventListener("click", () => copyToClipboard(els.giphyCopyUrl, els.giphyCopyUrlBtn));
 
 applyTheme(preferredTheme());
 resetVideo("");
