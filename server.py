@@ -192,8 +192,27 @@ def run_command(command: list[str], job_id: str, phase: str, progress_base: int 
         raise RuntimeError(detail)
 
 
-def build_format_selector(quality: int) -> str:
-    return f"bestvideo[height={quality}]+bestaudio/best[height={quality}]"
+def build_format_selector(quality: int, include_audio: bool = True) -> str:
+    if include_audio:
+        return f"bestvideo[height={quality}]+bestaudio/best[height={quality}]"
+    return f"bestvideo[height={quality}][acodec=none]/best[height={quality}][acodec=none]"
+
+
+def build_downloader_args(include_audio: bool = True) -> str:
+    audio_args = "-c:a aac -b:a 128k" if include_audio else "-an"
+    return f"ffmpeg:-c:v libx264 -crf 28 -preset fast {audio_args}"
+
+
+def parse_bool(value, default: bool = True) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "si", "sí"}:
+            return True
+        if normalized in {"false", "0", "no"}:
+            return False
+    return default
 
 
 def build_gif_filter(quality: int) -> str:
@@ -321,6 +340,7 @@ def process_job(job_id: str, payload: dict) -> None:
         end = int(payload.get("end", 0))
         quality = int(payload.get("quality", 0))
         output_format = str(payload.get("format", "mp4")).lower()
+        include_audio = parse_bool(payload.get("includeAudio", True)) if output_format == "mp4" else True
 
         if output_format not in {"mp4", "gif"}:
             raise ValueError("Formato no soportado.")
@@ -358,11 +378,11 @@ def process_job(job_id: str, payload: dict) -> None:
             "--download-sections",
             f"*{seconds_to_hhmmss(start)}-{seconds_to_hhmmss(end)}",
             "-f",
-            build_format_selector(quality),
+            build_format_selector(quality, include_audio),
             "--merge-output-format",
             "mp4",
             "--downloader-args",
-            "ffmpeg:-c:v libx264 -crf 28 -preset fast -c:a aac -b:a 128k",
+            build_downloader_args(include_audio),
             "-o",
             str(raw_path),
             url,

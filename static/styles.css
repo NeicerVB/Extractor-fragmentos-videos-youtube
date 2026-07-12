@@ -291,7 +291,7 @@ select {
 }
 
 .url-input,
-.control-grid input,
+.control-grid input:not([type="checkbox"]),
 .control-grid select,
 .exclusion-grid input {
   width: 100%;
@@ -304,13 +304,43 @@ select {
   transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
 }
 
+.check-field {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  align-self: end;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 13px;
+  color: var(--ink);
+  background: var(--field);
+  font-weight: 850;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.check-field input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.check-field:hover {
+  border-color: color-mix(in srgb, var(--focus) 56%, var(--line));
+}
+
+.check-field[hidden] {
+  display: none;
+}
+
 .url-input {
   padding-left: 58px;
   font-size: 1rem;
 }
 
 .url-input:hover,
-.control-grid input:hover,
+.control-grid input:not([type="checkbox"]):hover,
 .control-grid select:hover,
 .exclusion-grid input:hover {
   border-color: color-mix(in srgb, var(--focus) 56%, var(--line));
@@ -321,8 +351,9 @@ select {
 .download-link:focus-visible,
 .skip-link:focus-visible,
 .url-input:focus-visible,
-.control-grid input:focus-visible,
+.control-grid input:not([type="checkbox"]):focus-visible,
 .control-grid select:focus-visible,
+.check-field:focus-within,
 .exclusion-grid input:focus-visible,
 .secondary-button:focus-visible,
 .exclusion-item button:focus-visible,
@@ -337,8 +368,9 @@ select {
 }
 
 .url-input:disabled,
-.control-grid input:disabled,
+.control-grid input:not([type="checkbox"]):disabled,
 .control-grid select:disabled,
+.check-field:has(input:disabled),
 .exclusion-grid input:disabled,
 .secondary-button:disabled {
   cursor: not-allowed;
@@ -481,13 +513,13 @@ select {
   gap: 12px;
 }
 
-.control-grid label {
+.control-grid label:not(.check-field) {
   display: grid;
   min-width: 0;
   gap: 9px;
 }
 
-.control-grid input,
+.control-grid input:not([type="checkbox"]),
 .control-grid select,
 .exclusion-grid input {
   font-variant-numeric: tabular-nums;

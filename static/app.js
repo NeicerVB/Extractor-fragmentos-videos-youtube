@@ -30,6 +30,8 @@ const els = {
   exclusionSummary: document.querySelector("#exclusionSummary"),
   format: document.querySelector("#formatSelect"),
   quality: document.querySelector("#qualitySelect"),
+  audioOption: document.querySelector("#audioOption"),
+  includeAudio: document.querySelector("#includeAudioCheckbox"),
   rangeError: document.querySelector("#rangeError"),
   extract: document.querySelector("#extractButton"),
   progressWrap: document.querySelector("#progressWrap"),
@@ -149,9 +151,17 @@ function setControlsEnabled(enabled) {
     els.addExclusion,
     els.format,
     els.quality,
+    els.includeAudio,
   ].forEach((el) => {
     el.disabled = !available;
   });
+  renderFormatOptions();
+}
+
+function renderFormatOptions() {
+  const isMp4 = els.format.value === "mp4";
+  els.audioOption.hidden = !isMp4;
+  els.includeAudio.disabled = !isMp4 || !state.video || state.processing;
 }
 
 function trackBackground(duration) {
@@ -232,6 +242,7 @@ function renderRange() {
 
   els.track.style.background = trackBackground(duration);
   renderExclusions();
+  renderFormatOptions();
 
   const tooLong = state.end - state.start > MAX_SEGMENT;
   const emptyClip = finalDuration() <= 0;
@@ -403,6 +414,7 @@ async function extractClip() {
         end: state.end,
         exclusions: state.exclusions,
         format: els.format.value,
+        includeAudio: els.format.value === "mp4" ? els.includeAudio.checked : false,
         quality: Number(els.quality.value),
       }),
     });
